@@ -414,10 +414,10 @@ func generateOpenAICommitMessage(diff, apiKey, language string, emoji bool) (str
 	prompt := fmt.Sprintf("%s\n%s", getPrompt(language, emoji), diff)
 
 	chatCompletion, err := client.Chat.Completions.New(ctx, openai.ChatCompletionNewParams{
-		Messages: openai.F([]openai.ChatCompletionMessageParamUnion{
+		Messages: []openai.ChatCompletionMessageParamUnion{
 			openai.UserMessage(prompt),
-		}),
-		Model: openai.F(openai.ChatModel(openaiModel)),
+		},
+		Model: openaiModel,
 	})
 	if err != nil {
 		return "", fmt.Errorf("generating commit message: %w", err)
@@ -548,10 +548,10 @@ func generateQwenCommitMessage(diff, apiKey, language string, emoji bool, timeou
 	prompt := fmt.Sprintf("%s\n%s", getPrompt(language, emoji), diff)
 
 	chatCompletion, err := client.Chat.Completions.New(ctx, openai.ChatCompletionNewParams{
-		Messages: openai.F([]openai.ChatCompletionMessageParamUnion{
+		Messages: []openai.ChatCompletionMessageParamUnion{
 			openai.UserMessage(prompt),
-		}),
-		Model: openai.F(qwenModel),
+		},
+		Model: qwenModel,
 	})
 	if err != nil {
 		return "", fmt.Errorf("generating commit message: %w", err)
@@ -593,10 +593,10 @@ func generateOpenAICompatibleCommitMessage(diff, apiKey, model, baseURL, languag
 	}
 
 	chatCompletion, err := client.Chat.Completions.New(ctx, openai.ChatCompletionNewParams{
-		Messages: openai.F([]openai.ChatCompletionMessageParamUnion{
+		Messages: []openai.ChatCompletionMessageParamUnion{
 			openai.UserMessage(prompt),
-		}),
-		Model: openai.F(openai.ChatModel(model)),
+		},
+		Model: model,
 	})
 	if err != nil {
 		return "", fmt.Errorf("generating commit message: %w", err)
