@@ -179,8 +179,10 @@ func main() {
 	commitCmd := &cobra.Command{
 		Use:   "commit",
 		Short: "Generate git commit message including title and body",
+		Long:  `Generate a git commit message using AI. Use --language (-l) flag to quickly switch language without modifying config.`,
 		Run: func(cmd *cobra.Command, args []string) {
 			yes, _ := cmd.Flags().GetBool("yes")
+			language, _ := cmd.Flags().GetString("language")
 
 			// Execute git diff --cached command
 			diffOutput, err := exec.Command("git", "diff", "--cached").Output()
@@ -236,10 +238,15 @@ func main() {
 				}
 			}
 
-			config := llm.NewConfig()
+				config := llm.NewConfig()
 			if err := config.Load(); err != nil {
 				fmt.Printf("Error reading config: %v\n", err)
 				exit(ExitConfigLoad)
+			}
+
+			// Override language from command line flag
+			if language != "" {
+				config.Language = language
 			}
 
 			var provider string
@@ -249,13 +256,20 @@ func main() {
 				provider = config.CurrentProvider
 			}
 
-			// First message generation
 			fmt.Println("\n🤖 Generating commit message by", provider)
 			var commitMessage string
-			commitMessage, err = generateMessage(config, diffOutput)
-			if err != nil {
-				fmt.Printf("Error generating commit message: %v\n", err)
-				exit(ExitLLM)
+			for attempt := 1; attempt <= 3; attempt++ {
+				commitMessage, err = generateMessage(config, diffOutput)
+				if err != nil {
+					fmt.Printf("Error generating commit message: %v\n", err)
+					exit(ExitLLM)
+				}
+				if !llm.IsRawCommitJSON(commitMessage) {
+					break
+				}
+				if attempt < 3 {
+					color.Yellow("⚠️ Response format incorrect (body must be a string list), retrying (%d/3)...", attempt)
+				}
 			}
 
 			if yes {
@@ -337,10 +351,18 @@ func main() {
 					return
 				case 1:
 					fmt.Println("\n🤖 Regenerating commit message...")
-					commitMessage, err = generateMessage(config, diffOutput)
-					if err != nil {
-						fmt.Printf("Error generating commit message: %v\n", err)
-						exit(ExitLLM)
+					for attempt := 1; attempt <= 3; attempt++ {
+						commitMessage, err = generateMessage(config, diffOutput)
+						if err != nil {
+							fmt.Printf("Error generating commit message: %v\n", err)
+							exit(ExitLLM)
+						}
+						if !llm.IsRawCommitJSON(commitMessage) {
+							break
+						}
+						if attempt < 3 {
+							color.Yellow("⚠️ Response format incorrect (body must be a string list), retrying (%d/3)...", attempt)
+						}
 					}
 					continue
 				default:
@@ -351,6 +373,7 @@ func main() {
 	}
 
 	commitCmd.Flags().BoolP("yes", "y", false, "Skip all confirmations and commit directly")
+	commitCmd.Flags().StringP("language", "l", "", "Language for commit message: en or zh (overrides config file)")
 
 	rootCmd.AddCommand(commitCmd)
 
