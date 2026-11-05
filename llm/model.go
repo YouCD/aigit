@@ -185,7 +185,7 @@ func renderCommitMessage(data *CommitData, useEmoji bool) string {
 func parseAndRenderCommit(raw string, useEmoji bool) (string, error) {
 	data, _ := extractCommitData(raw)
 	if data == nil {
-		return strings.TrimSpace(raw), nil
+		return cleanCommitResponse(raw), nil
 	}
 	return renderCommitMessage(data, useEmoji), nil
 }
@@ -194,48 +194,97 @@ func IsRawCommitJSON(s string) bool {
 	return looksLikeCommitJSON(s)
 }
 
-func looksLikeCommitJSON(s string) bool {
-	cleaned := strings.TrimSpace(s)
-	if idx := strings.Index(cleaned, "```"); idx >= 0 {
-		cleaned = cleaned[idx+3:]
-		if endIdx := strings.LastIndex(cleaned, "```"); endIdx >= 0 {
-			cleaned = cleaned[:endIdx]
+// cleanCommitResponse removes thinking-tag markers, markdown code fences and
+// the "json" language prefix, returning a trimmed response. Tag markers are
+// removed while keeping their content, so a JSON payload the model places
+// inside a thinking block survives intact.
+func cleanCommitResponse(raw string) string {
+	s := strings.ReplaceAll(raw, "<thinking>", "")
+	s = strings.ReplaceAll(s, "</thinking>", "")
+	if idx := strings.Index(s, "```"); idx >= 0 {
+		s = s[idx+3:]
+		if endIdx := strings.LastIndex(s, "```"); endIdx >= 0 {
+			s = s[:endIdx]
 		}
 	}
-	cleaned = strings.TrimSpace(cleaned)
-	cleaned = strings.TrimPrefix(cleaned, "json")
-	cleaned = strings.TrimSpace(cleaned)
-
-	var data struct {
-		Type        string `json:"type"`
-		Description string `json:"description"`
-	}
-	if err := json.Unmarshal([]byte(cleaned), &data); err != nil {
-		return false
-	}
-	return data.Type != "" && data.Description != ""
+	s = strings.TrimSpace(s)
+	s = strings.TrimPrefix(s, "json")
+	return strings.TrimSpace(s)
 }
 
-func extractCommitData(raw string) (*CommitData, error) {
-	cleaned := raw
-	if idx := strings.Index(cleaned, "```"); idx >= 0 {
-		cleaned = cleaned[idx+3:]
-		if endIdx := strings.LastIndex(cleaned, "```"); endIdx >= 0 {
-			cleaned = cleaned[:endIdx]
-		}
-	}
-	cleaned = strings.TrimSpace(cleaned)
-	cleaned = strings.TrimPrefix(cleaned, "json")
-	cleaned = strings.TrimSpace(cleaned)
-
+// tryParseCommitJSON decodes s and requires the two mandatory fields.
+func tryParseCommitJSON(s string) (*CommitData, error) {
 	var data CommitData
-	if err := json.Unmarshal([]byte(cleaned), &data); err != nil {
+	if err := json.Unmarshal([]byte(s), &data); err != nil {
 		return nil, err
 	}
 	if data.Type == "" || data.Description == "" {
 		return nil, fmt.Errorf("missing required fields")
 	}
 	return &data, nil
+}
+
+// balancedJSONSpan returns the substring of s beginning at the '{' at start
+// and ending at its matching '}', honouring nested objects and braces inside
+// string literals.
+func balancedJSONSpan(s string, start int) (string, bool) {
+	depth, inStr, escape := 0, false, false
+	for i := start; i < len(s); i++ {
+		c := s[i]
+		if inStr {
+			switch {
+			case escape:
+				escape = false
+			case c == '\\':
+				escape = true
+			case c == '"':
+				inStr = false
+			}
+			continue
+		}
+		switch c {
+		case '"':
+			inStr = true
+		case '{':
+			depth++
+		case '}':
+			depth--
+			if depth == 0 {
+				return s[start : i+1], true
+			}
+		}
+	}
+	return "", false
+}
+
+func extractCommitData(raw string) (*CommitData, error) {
+	// The prompt asks for a bare JSON object, so try the cleaned response as a
+	// whole first (covers plain objects and fenced blocks).
+	if data, err := tryParseCommitJSON(cleanCommitResponse(raw)); err == nil {
+		return data, nil
+	}
+	// Some providers wrap the JSON in thinking tags or prose; recover the
+	// outermost JSON object embedded anywhere in the response.
+	start := 0
+	for {
+		i := strings.IndexByte(raw[start:], '{')
+		if i < 0 {
+			break
+		}
+		i += start
+		if span, ok := balancedJSONSpan(raw, i); ok {
+			if data, err := tryParseCommitJSON(span); err == nil {
+				return data, nil
+			}
+		}
+		start = i + 1
+	}
+	return nil, fmt.Errorf("no commit JSON found in response")
+}
+
+func looksLikeCommitJSON(s string) bool {
+	_, err := extractCommitData(s)
+	return err == nil
 }
 
 var (
