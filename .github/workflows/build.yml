@@ -93,14 +93,26 @@ jobs:
           path: artifacts
           merge-multiple: true
 
-      - name: Draft Release
-        id: release_drafter
-        uses: release-drafter/release-drafter@v5
+      - name: Generate release notes
+        id: gen_notes
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${GITHUB_REF#refs/tags/}"
+          PREV=$(git describe --tags --abbrev=0 "${TAG}^" 2>/dev/null || true)
+          if [ -n "$PREV" ]; then
+            echo "previous tag: $PREV" >> "$GITHUB_STEP_SUMMARY"
+            RESP=$(gh api repos/${{ github.repository }}/releases/generate-notes \
+              -f tag_name="$TAG" -f previous_tag_name="$PREV")
+          else
+            RESP=$(gh api repos/${{ github.repository }}/releases/generate-notes \
+              -f tag_name="$TAG")
+          fi
+          echo "name=$(echo "$RESP" | jq -r .name)" >> "$GITHUB_OUTPUT"
+          { echo "notes<<EOF"; echo "$RESP" | jq -r .body; echo EOF; } >> "$GITHUB_OUTPUT"
 
       - name: Upload Release Assets
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           files: |
             artifacts/aigit_darwin_amd64
@@ -108,6 +120,6 @@ jobs:
             artifacts/aigit_linux_amd64
             artifacts/aigit_windows_amd64.exe
           draft: false
-          body: ${{ steps.release_drafter.outputs.body }}
+          body: ${{ steps.gen_notes.outputs.notes }}
           tag_name: ${{ github.ref_name }}
-          name: ${{ github.ref_name }}
+          name: ${{ steps.gen_notes.outputs.name }}
