@@ -25,17 +25,27 @@ func NewConfig() *Config {
 	return &Config{
 		Providers: make(map[string]Provider),
 		Emoji:     true,
-		Timeout:   60,
+		Timeout:   300,
 	}
 }
 
-func (c *Config) Load() error {
-	homeDir, err := os.UserHomeDir()
+// ConfigDir returns the per-user aigit config directory
+// (~/.config/aigit on Unix, %AppData%\aigit on Windows).
+func ConfigDir() (string, error) {
+	base, err := os.UserConfigDir()
 	if err != nil {
-		return fmt.Errorf("getting home directory: %w", err)
+		return "", fmt.Errorf("getting config directory: %w", err)
+	}
+	return filepath.Join(base, "aigit"), nil
+}
+
+func (c *Config) Load() error {
+	configDir, err := ConfigDir()
+	if err != nil {
+		return err
 	}
 
-	configFile := filepath.Join(homeDir, ".config", "aigit", "config.json")
+	configFile := filepath.Join(configDir, "config.json")
 	configData, err := os.ReadFile(configFile)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -56,12 +66,10 @@ func (c *Config) Load() error {
 }
 
 func (c *Config) Save() error {
-	homeDir, err := os.UserHomeDir()
+	configDir, err := ConfigDir()
 	if err != nil {
-		return fmt.Errorf("getting home directory: %w", err)
+		return err
 	}
-
-	configDir := filepath.Join(homeDir, ".config", "aigit")
 	if err := os.MkdirAll(configDir, 0o700); err != nil {
 		return fmt.Errorf("creating config directory: %w", err)
 	}
@@ -91,98 +99,33 @@ func (c *Config) AddProvider(provider, apiKey string, endpoint ...string) error 
 	return c.Save()
 }
 
-func (c *Config) UseProvider(provider string) error {
-	if _, exists := c.Providers[provider]; !exists {
-		return fmt.Errorf("provider %s not configured", provider)
-	}
-	c.CurrentProvider = provider
-	return c.Save()
-}
-
-func (c *Config) GetAPIKey(provider string) (string, error) {
-	if p, exists := c.Providers[provider]; exists {
-		return p.APIKey, nil
-	}
-	return "", fmt.Errorf("no API key found for provider %s", provider)
-}
-
-func (c *Config) ListProviders() []string {
-	providers := make([]string, 0, len(c.Providers))
-	for k, p := range c.Providers {
-		entry := fmt.Sprintf("%s(%s)", k, providerModel(k, p))
-		if k == c.CurrentProvider {
-			entry += " *default"
-		}
-		providers = append(providers, entry)
-	}
-	return providers
-}
-
-// providerModel returns the model a provider will use: the configured
-// endpoint/model if set, otherwise the provider's default model.
-func providerModel(provider string, p Provider) string {
-	if p.Endpoint != "" {
-		return p.Endpoint
-	}
-	switch provider {
-	case ProviderGemini:
-		return geminiModel
-	case ProviderOpenAI:
-		return openaiModel
-	case ProviderDeepseek:
-		return deepseekModel
-	case ProviderQwen:
-		return qwenModel
-	case ProviderDoubao:
-		return doubaoModel
-	case ProviderOpenAICompatible:
-		return "custom"
-	}
-	return "unknown"
-}
-
 // GetMessageGenerator returns a MessageGenerator instance based on the current provider.
 func (c *Config) GetMessageGenerator() (MessageGenerator, error) {
 	provider := c.CurrentProvider
 	if provider == "" {
-		provider = ProviderDoubao
+		return nil, fmt.Errorf("no provider configured; run: aigit auth add <api_key> <model> --base-url <url>")
 	}
 
 	p, exists := c.Providers[provider]
 	if !exists {
-		return NewDefauleGenerator(c.Language)
+		return nil, fmt.Errorf("provider %s is not configured", provider)
 	}
 
-	lang := c.Language
-	emoji := c.Emoji
-	timeout := c.Timeout
-
-	switch provider {
-	case ProviderGemini:
-		return NewGeminiGenerator(p.APIKey, lang, emoji, timeout), nil
-	case ProviderOpenAI:
-		return NewOpenAIGenerator(p.APIKey, lang, emoji, timeout), nil
-	case ProviderDoubao:
-		return NewDoubaoGenerator(p.APIKey, p.Endpoint, lang, emoji, timeout), nil
-	case ProviderDeepseek:
-		return NewDeepseekGenerator(p.APIKey, lang, emoji, timeout), nil
-	case ProviderQwen:
-		return NewQwenGenerator(p.APIKey, lang, emoji, timeout), nil
-	case ProviderOpenAICompatible:
-		if p.APIKey == "" {
-			return nil, fmt.Errorf("API key is required for %s provider", provider)
-		}
-		if p.BaseURL == "" {
-			return nil, fmt.Errorf("base URL is required for %s provider", provider)
-		}
-		model := p.Endpoint
-		if model == "" {
-			return nil, fmt.Errorf("model is required for %s provider", provider)
-		}
-		return NewOpenAICompatibleGenerator(p.APIKey, model, p.BaseURL, lang, emoji, timeout), nil
-	default:
-		return NewDefauleGenerator(c.Language)
+	if provider != ProviderOpenAICompatible {
+		return nil, fmt.Errorf("unsupported provider: %s", provider)
 	}
+
+	if p.APIKey == "" {
+		return nil, fmt.Errorf("API key is required for %s provider", provider)
+	}
+	if p.BaseURL == "" {
+		return nil, fmt.Errorf("base URL is required for %s provider", provider)
+	}
+	model := p.Endpoint
+	if model == "" {
+		return nil, fmt.Errorf("model is required for %s provider", provider)
+	}
+	return NewOpenAICompatibleGenerator(p.APIKey, model, p.BaseURL, c.Language, c.Emoji, c.Timeout), nil
 }
 
 func detectLanguage() string {

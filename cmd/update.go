@@ -1,4 +1,4 @@
-package main
+package cmd
 
 import (
 	"encoding/json"
@@ -9,14 +9,19 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/YouCD/aigit/llm"
 )
 
-const (
-	updateCheckInterval = 24 * time.Hour
-	latestReleaseURL    = "https://api.github.com/repos/agentsdance/aigit/releases/latest"
-)
+const updateCheckInterval = 24 * time.Hour
 
-// updateCheckState is persisted to ~/.aigit/update-check.json so the
+// latestReleaseURL points at the GitHub API endpoint for the newest aigit
+// release tag. Release builds override it at compile time with
+// -ldflags "-X main.latestReleaseURL=..." so the check always tracks the
+// repository the binary was released from.
+var latestReleaseURL = "https://api.github.com/repos/YouCD/aigit/releases/latest"
+
+// updateCheckState is persisted to ~/.config/aigit/update-check.json so the
 // GitHub API is queried at most once per updateCheckInterval.
 type updateCheckState struct {
 	CheckedAt     time.Time `json:"checked_at"`
@@ -72,15 +77,14 @@ func latestVersion() (string, error) {
 }
 
 func updateStateFile() string {
-	homeDir, err := os.UserHomeDir()
+	configDir, err := llm.ConfigDir()
 	if err != nil {
 		return ""
 	}
-	dir := filepath.Join(homeDir, ".aigit")
-	if err := os.MkdirAll(dir, 0o700); err != nil {
+	if err := os.MkdirAll(configDir, 0o700); err != nil {
 		return ""
 	}
-	return filepath.Join(dir, "update-check.json")
+	return filepath.Join(configDir, "update-check.json")
 }
 
 func readUpdateState(path string) (updateCheckState, error) {

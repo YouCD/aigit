@@ -1,5 +1,8 @@
 BINARY_NAME=aigit
 VERSION=$(shell git describe --tags --always --dirty)
+REPO=$(shell git remote get-url origin 2>/dev/null | sed -E 's#^git@github.com:##; s#^https://github.com/##; s#\.git$$##')
+RELEASE_URL=https://api.github.com/repos/$(REPO)/releases/latest
+REPO_URL=https://github.com/$(REPO)
 
 # Build directories
 BUILD_DIR=build
@@ -17,19 +20,19 @@ build-all: clean linux macos-amd64 macos-arm64 windows
 
 linux:
 	@mkdir -p $(BUILD_DIR)
-	GOOS=linux GOARCH=amd64 go build -ldflags="-s -w -X main.Version=$(VERSION)" -o $(LINUX_AMD64) .
+	GOOS=linux GOARCH=amd64 go build -ldflags="-s -w -X github.com/YouCD/aigit/cmd.Version=$(VERSION) -X github.com/YouCD/aigit/cmd.latestReleaseURL=$(RELEASE_URL) -X github.com/YouCD/aigit/cmd.repoURL=$(REPO_URL)" -o $(LINUX_AMD64) .
 
 macos-amd64:
 	@mkdir -p $(BUILD_DIR)
-	GOOS=darwin GOARCH=amd64 go build -ldflags="-s -w -X main.Version=$(VERSION)" -o $(MACOS_AMD64) .
+	GOOS=darwin GOARCH=amd64 go build -ldflags="-s -w -X github.com/YouCD/aigit/cmd.Version=$(VERSION) -X github.com/YouCD/aigit/cmd.latestReleaseURL=$(RELEASE_URL) -X github.com/YouCD/aigit/cmd.repoURL=$(REPO_URL)" -o $(MACOS_AMD64) .
 
 macos-arm64:
 	@mkdir -p $(BUILD_DIR)
-	GOOS=darwin GOARCH=arm64 go build -ldflags="-s -w -X main.Version=$(VERSION)" -o $(MACOS_ARM64) .
+	GOOS=darwin GOARCH=arm64 go build -ldflags="-s -w -X github.com/YouCD/aigit/cmd.Version=$(VERSION) -X github.com/YouCD/aigit/cmd.latestReleaseURL=$(RELEASE_URL) -X github.com/YouCD/aigit/cmd.repoURL=$(REPO_URL)" -o $(MACOS_ARM64) .
 
 windows:
 	@mkdir -p $(BUILD_DIR)
-	GOOS=windows GOARCH=amd64 go build -ldflags="-s -w -X main.Version=$(VERSION)" -o $(WINDOWS_AMD64) .
+	GOOS=windows GOARCH=amd64 go build -ldflags="-s -w -X github.com/YouCD/aigit/cmd.Version=$(VERSION) -X github.com/YouCD/aigit/cmd.latestReleaseURL=$(RELEASE_URL) -X github.com/YouCD/aigit/cmd.repoURL=$(REPO_URL)" -o $(WINDOWS_AMD64) .
 
 clean:
 	@rm -rf $(BUILD_DIR)

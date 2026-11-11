@@ -10,176 +10,100 @@ It's a command-line tool that streamlines the git commit process by automaticall
 
 ## Supported 🤖 AI Providers
 
-| Provider | Default model |
-|---|---|
-| [OpenAI](https://openai.com/) | `gpt-5.4-mini` |
-| [DeepSeek](https://deepseek.com/) | `deepseek-v4-flash-260425` |
-| [Doubao (豆包)](https://www.volcengine.com/product/doubao) - Built-in, you don't need to bring your own key | `doubao-seed-2-0-lite-260428` |
-| [Gemini](https://gemini.google.com/) | `gemini-3.5-flash` |
-| [Qwen (通义千问)](https://www.aliyun.com/product/tongyi) | `qwen-plus` |
+aigit works with any **OpenAI-compatible** API (OpenAI, DeepSeek, Qwen, Groq, Together AI, OpenRouter, vLLM, ...).
+
+```shell
+aigit auth add <api_key> <model> --base-url <base_url>
+```
 
 ## Getting Started
 
 ### Installation
 
-#### Option 1: Homebrew (Recommended)
-
-```shell
-# Add the repository as a tap (use full URL)
-brew tap zzxwill/aigit https://github.com/zzxwill/aigit.git
-
-# Install stable version (from releases)
-brew install aigit
-
-# Install development version (from dev branch)
-brew install --HEAD aigit
-
-# Alternative: Install from local formula file
-# curl -O https://raw.githubusercontent.com/zzxwill/aigit/master/Formula/aigit.rb
-# brew install --formula aigit.rb
-```
-
-#### Option 2: Download Binary
-
-You can install aigit in one of the following ways:
+#### Option 1: Download Binary
 
 1. Using `go install`:
 
 ```shell
-go install github.com/zzxwill/aigit@latest
-```
-
-```shell
-$ aigit version
-v0.0.8
+go install github.com/YouCD/aigit@latest
 ```
 
 2. Download from releases:
 
-- Go to the [releases page](https://github.com/zzxwill/aigit/releases) and download the binary for your platform.
+- Go to the [releases page](https://github.com/YouCD/aigit/releases) and download the binary for your platform.
 - Rename the binary to `aigit` and move it to `/usr/local/bin/aigit`.
 
 ```shell
 chmod +x aigit && sudo mv aigit /usr/local/bin/aigit
 ```
 
-#### Option 3: Build from Source
+#### Option 2: Build from Source
 
 ```shell
-git clone https://github.com/zzxwill/aigit.git
+git clone https://github.com/YouCD/aigit.git
 cd aigit
-go build -o aigit main.go
+go build -o aigit .
 sudo mv aigit /usr/local/bin/aigit
 ```
 
 ### Generate commit message
 
+Run `aigit commit` in a repository with staged changes:
+
 ```shell
 $ aigit commit
 
-🤖 Generating commit message...
+🤖 Generating commit message by openai-compatible
 
 📝 Generated commit message:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 feat(llm): add support for volcengine-go-sdk
 
-This commit adds support for the volcengine-go-sdk for integrating with Doubao LLM service.
+This commit adds support for the volcengine-go-sdk for integrating with
+Doubao LLM service.
 
 The following changes were made:
 
 - Provider type and APIKey field were added to the llm.Config struct.
 - generateDoubaoCommitMessage function was updated to use the volcengine-go-sdk.
 - The client is initialized with the apiKey and endpointId.
-- A prompt is constructed and sent to the CreateChatCompletion API.
-- The first choice's message is returned as the commit message.
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-🤔 What would you like to do?
-1. Commit this message (default)
-2. Regenerate message
-
-Enter your choice (press Enter for default):
-
-✅ Successfully committed changes!
+? Choose an action ❯ Commit this message  Regenerate message
 ```
 
-### Generate commit message with your own AI API Key
+- If nothing is staged, aigit asks whether to run `git add .` first.
+- After committing, aigit asks whether to push to the remote.
+
+Useful flags:
 
 ```shell
-$ aigit auth add gemini AIzaSyCb56bjWn02e2v4s_TxHMDnHbSJQSx_tu8
-Successfully added API key for gemini
-
-$ aigit auth add doubao 6e3e438c-a380-4ed5-b597-e01cb82bc4df
-Successfully added API key for doubao
-
-$ aigit auth ls
-Configured providers:
-  gemini(gemini-3.5-flash) *default
-  doubao(doubao-seed-2-0-lite-260428)
-
-$ aigit commit
-
-🤖 Generating commit message...
-
-📝 Generated commit message:
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-feat(llm): add support for volcengine-go-sdk
-
-This commit adds support for the volcengine-go-sdk for integrating with Doubao LLM service.
-
-The following changes were made:
-
-- Provider type and APIKey field were added to the llm.Config struct.
-- generateDoubaoCommitMessage function was updated to use the volcengine-go-sdk.
-- The client is initialized with the apiKey and endpointId.
-- A prompt is constructed and sent to the CreateChatCompletion API.
-- The first choice's message is returned as the commit message.
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-🤔 What would you like to do?
-1. Commit this message (default)
-2. Regenerate message
-
-Enter your choice (press Enter for default): 2
-
-🤖 Regenerating commit message...
-
-📝 Generated commit message:
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-feat(llm): add support for volcengine-go-sdk
-
-This commit adds support for the volcengine-go-sdk for integrating with Doubao LLM service.
-
-The following changes were made:
-
-- Provider type and APIKey field were added to the llm.Config struct.
-- generateDoubaoCommitMessage function was updated to use the volcengine-go-sdk.
-- The client is initialized with the apiKey and endpointId.
-- A prompt is constructed and sent to the CreateChatCompletion API.
-- The first choice's message is returned as the commit message.
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-🤔 What would you like to do?
-1. Commit this message (default)
-2. Regenerate message
-
-Enter your choice (press Enter for default): 1
-
-✅ Successfully committed changes!
-
+aigit commit -y       # skip all confirmations and commit directly
+aigit commit -l zh    # generate the message in Chinese (en|zh, per-run only)
+aigit commit -t 120   # LLM request timeout in seconds (per-run only)
 ```
 
-For Doubao, the provider uses the built-in default model. You can optionally pass an
-[Ark inference endpoint ID](https://www.volcengine.com/docs/82379/1099522) (`ep-xxx`) or a model ID to override it:
+### Configure your AI provider
 
 ```shell
-$ aigit auth add doubao <api_key> ep-20250110202503-fdkgq
+$ aigit auth add sk-xxx deepseek-chat --base-url https://api.deepseek.com/v1
+Successfully added API key for openai-compatible
 ```
+
+## Configuration
+
+The config file lives at `~/.config/aigit/config.json`:
+
+| Field | Description | Default |
+|---|---|---|
+| `language` | Commit message language (`en` / `zh`) | auto-detected from `LANG` |
+| `emoji` | Include emojis in the commit message | `true` |
+| `timeout` | LLM request timeout in seconds | `300` |
+
+The message language can also be overridden per run with `aigit commit -l en|zh`.
 
 ## Update check
 
 aigit checks for new releases in the background (at most once every 24 hours, cached
-in `~/.aigit/update-check.json`). When a newer version is available, it asks after the
-command finishes whether to upgrade; if you agree, aigit upgrades itself in place
-(via Homebrew for brew installs, otherwise by building the release from source).
-Set `AIGIT_NO_UPDATE_CHECK=1` to disable the check.
+in `~/.config/aigit/update-check.json`). When a newer version is available, it asks after the
+command finishes whether to upgrade; if you agree, aigit builds the new release from
+source and upgrades itself in place. Set `AIGIT_NO_UPDATE_CHECK=1` to disable the check.

@@ -1,4 +1,4 @@
-package main
+package cmd
 
 import (
 	"fmt"
@@ -8,11 +8,14 @@ import (
 	"strings"
 )
 
-const repoURL = "https://github.com/agentsdance/aigit"
+// repoURL is the git repository cloned for self-upgrade. Release builds
+// override it at compile time with -ldflags "-X github.com/YouCD/aigit/cmd.repoURL=..." so the
+// upgrade always fetches from the repository the binary was released from.
+var repoURL = "https://github.com/YouCD/aigit"
 
-// selfUpgrade replaces the running binary with the given release version.
-// Homebrew installs are delegated to brew; everything else is built from the
-// release tag with the local Go toolchain and swapped in place.
+// selfUpgrade replaces the running binary with the given release version:
+// it builds the release tag with the local Go toolchain and swaps the
+// binary in place.
 func selfUpgrade(version string) error {
 	exe, err := os.Executable()
 	if err != nil {
@@ -20,13 +23,6 @@ func selfUpgrade(version string) error {
 	}
 	if resolved, err := filepath.EvalSymlinks(exe); err == nil {
 		exe = resolved
-	}
-
-	if strings.Contains(exe, "/Cellar/") || strings.Contains(exe, "/linuxbrew/") {
-		cmd := exec.Command("brew", "upgrade", "aigit")
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		return cmd.Run()
 	}
 
 	goBin, err := exec.LookPath("go")
@@ -46,7 +42,7 @@ func selfUpgrade(version string) error {
 	}
 
 	newBin := filepath.Join(tmpDir, "aigit")
-	build := exec.Command(goBin, "build", "-ldflags", "-s -w -X main.Version="+version, "-o", newBin, ".")
+	build := exec.Command(goBin, "build", "-ldflags", "-s -w -X github.com/YouCD/aigit/cmd.Version="+version, "-o", newBin, ".")
 	build.Dir = srcDir
 	if err := runQuiet(build); err != nil {
 		return fmt.Errorf("building %s: %w", version, err)

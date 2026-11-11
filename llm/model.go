@@ -1,49 +1,22 @@
 package llm
 
 import (
-	"bytes"
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"net/http"
 	"os"
 	"strings"
 	"text/template"
 	"time"
 
-	"github.com/google/generative-ai-go/genai"
 	"github.com/openai/openai-go"
 	openaioption "github.com/openai/openai-go/option"
-	"github.com/volcengine/volcengine-go-sdk/service/arkruntime"
-	"github.com/volcengine/volcengine-go-sdk/service/arkruntime/model"
-	"github.com/volcengine/volcengine-go-sdk/volcengine"
-	"google.golang.org/api/option"
 )
 
-const (
-	ProviderOpenAI           = "openai"
-	ProviderGemini           = "gemini"
-	ProviderDoubao           = "doubao"
-	ProviderDeepseek         = "deepseek"
-	ProviderQwen             = "qwen"
-	ProviderOpenAICompatible = "openai-compatible"
-
-	// Model constants
-	geminiModel   = "gemini-3.5-flash"
-	deepseekModel = "deepseek-v4-flash-260425"
-	openaiModel   = "gpt-5.4-mini"
-	qwenModel     = "qwen-plus"
-	doubaoModel   = "doubao-seed-2-0-lite-260428"
-)
+const ProviderOpenAICompatible = "openai-compatible"
 
 // Debug controls whether debug information is printed to stderr.
 var Debug bool
-
-const (
-	DefaultAPIKey   = "YzAzZDIyN2ItMWFkNS00MDNkLWJkM2YtZjgzNzczOWE4YzFj"
-	DefaultEndpoint = "ZXAtMjAyNTAxMTMyMzE5NTEtOTJ4bjI="
-)
 
 const englishPrompt = `Analyze the git diff and output ONLY a valid JSON object with these fields:
 - "type": commit type from the list below
@@ -287,130 +260,11 @@ func looksLikeCommitJSON(s string) bool {
 	return err == nil
 }
 
-var (
-	_ MessageGenerator = (*DefaultGenerator)(nil)
-	_ MessageGenerator = (*GeminiGenerator)(nil)
-	_ MessageGenerator = (*OpenAIGenerator)(nil)
-	_ MessageGenerator = (*DoubaoGenerator)(nil)
-	_ MessageGenerator = (*DeepseekGenerator)(nil)
-	_ MessageGenerator = (*QwenGenerator)(nil)
-	_ MessageGenerator = (*OpenAICompatibleGenerator)(nil)
-)
+var _ MessageGenerator = (*OpenAICompatibleGenerator)(nil)
 
 // MessageGenerator Define a commit message generator
 type MessageGenerator interface {
 	GenerateCommitMessage(diff string) (string, error)
-}
-
-type DefaultGenerator struct {
-	MessageGenerator MessageGenerator
-}
-
-func NewDefauleGenerator(language ...string) (*DefaultGenerator, error) {
-	apiKey, err := base64.StdEncoding.DecodeString(DefaultAPIKey)
-	if err != nil {
-		return nil, fmt.Errorf("error decoding API key: %w", err)
-	}
-	endpoint, err := base64.StdEncoding.DecodeString(DefaultEndpoint)
-	if err != nil {
-		return nil, fmt.Errorf("error decoding endpoint: %w", err)
-	}
-	lang := ""
-	emoji := true
-	timeout := 60
-	if len(language) > 0 {
-		lang = language[0]
-	}
-	generator := &DefaultGenerator{
-		MessageGenerator: NewDoubaoGenerator(string(apiKey), string(endpoint), lang, emoji, timeout),
-	}
-
-	return generator, nil
-}
-
-func (d *DefaultGenerator) GenerateCommitMessage(diff string) (string, error) {
-	return d.MessageGenerator.GenerateCommitMessage(diff)
-}
-
-// GeminiGenerator Implemention Gemini provider
-type GeminiGenerator struct {
-	apiKey   string
-	language string
-	emoji    bool
-	timeout  int
-}
-
-func NewGeminiGenerator(apiKey, language string, emoji bool, timeout int) *GeminiGenerator {
-	return &GeminiGenerator{apiKey: apiKey, language: language, emoji: emoji, timeout: timeout}
-}
-
-func (g *GeminiGenerator) GenerateCommitMessage(diff string) (string, error) {
-	return generateGeminiCommitMessage(diff, g.apiKey, g.language, g.emoji)
-}
-
-// OpenAIGenerator Implemention OpenAI provider
-type OpenAIGenerator struct {
-	apiKey   string
-	language string
-	emoji    bool
-	timeout  int
-}
-
-func NewOpenAIGenerator(apiKey, language string, emoji bool, timeout int) *OpenAIGenerator {
-	return &OpenAIGenerator{apiKey: apiKey, language: language, emoji: emoji, timeout: timeout}
-}
-
-func (g *OpenAIGenerator) GenerateCommitMessage(diff string) (string, error) {
-	return generateOpenAICommitMessage(diff, g.apiKey, g.language, g.emoji)
-}
-
-// DoubaoGenerator Implemention Doubao provider
-type DoubaoGenerator struct {
-	apiKey   string
-	endpoint string
-	language string
-	emoji    bool
-	timeout  int
-}
-
-func NewDoubaoGenerator(apiKey, endpoint, language string, emoji bool, timeout int) *DoubaoGenerator {
-	return &DoubaoGenerator{apiKey: apiKey, endpoint: endpoint, language: language, emoji: emoji, timeout: timeout}
-}
-
-func (g *DoubaoGenerator) GenerateCommitMessage(diff string) (string, error) {
-	return generateDoubaoCommitMessage(diff, g.apiKey, g.endpoint, g.language, g.emoji)
-}
-
-// DeepseekGenerator Implemention Deepseek provider
-type DeepseekGenerator struct {
-	apiKey   string
-	language string
-	emoji    bool
-	timeout  int
-}
-
-func NewDeepseekGenerator(apiKey, language string, emoji bool, timeout int) *DeepseekGenerator {
-	return &DeepseekGenerator{apiKey: apiKey, language: language, emoji: emoji, timeout: timeout}
-}
-
-func (g *DeepseekGenerator) GenerateCommitMessage(diff string) (string, error) {
-	return generateDeepseekCommitMessage(diff, g.apiKey, g.language, g.emoji)
-}
-
-// QwenGenerator Implemention Qwen provider
-type QwenGenerator struct {
-	apiKey   string
-	language string
-	emoji    bool
-	timeout  int
-}
-
-func NewQwenGenerator(apiKey, language string, emoji bool, timeout int) *QwenGenerator {
-	return &QwenGenerator{apiKey: apiKey, language: language, emoji: emoji, timeout: timeout}
-}
-
-func (g *QwenGenerator) GenerateCommitMessage(diff string) (string, error) {
-	return generateQwenCommitMessage(diff, g.apiKey, g.language, g.emoji, g.timeout)
 }
 
 // OpenAICompatibleGenerator Implementation for OpenAI-compatible providers (e.g. Groq, Together AI, OpenRouter)
@@ -429,188 +283,6 @@ func NewOpenAICompatibleGenerator(apiKey, model, baseURL, language string, emoji
 
 func (g *OpenAICompatibleGenerator) GenerateCommitMessage(diff string) (string, error) {
 	return generateOpenAICompatibleCommitMessage(diff, g.apiKey, g.model, g.baseURL, g.language, g.emoji, g.timeout)
-}
-
-func generateGeminiCommitMessage(diff, apiKey, language string, emoji bool) (string, error) {
-	ctx := context.Background()
-	client, err := genai.NewClient(ctx, option.WithAPIKey(apiKey))
-	if err != nil {
-		return "", fmt.Errorf("creating Gemini client: %w", err)
-	}
-	defer client.Close()
-
-	model := client.GenerativeModel(geminiModel)
-	prompt := fmt.Sprintf("%s\n%s", getPrompt(language, emoji), diff)
-
-	resp, err := model.GenerateContent(ctx, genai.Text(prompt))
-	if err != nil {
-		return "", fmt.Errorf("generating commit message: %w", err)
-	}
-
-	if len(resp.Candidates) > 0 && len(resp.Candidates[0].Content.Parts) > 0 {
-		generatedMessage := resp.Candidates[0].Content.Parts[0].(genai.Text)
-		return parseAndRenderCommit(strings.TrimSpace(string(generatedMessage)), emoji)
-	}
-
-	return "", fmt.Errorf("no commit message generated by Gemini")
-}
-
-func generateOpenAICommitMessage(diff, apiKey, language string, emoji bool) (string, error) {
-	client := openai.NewClient(
-		openaioption.WithAPIKey(apiKey),
-	)
-	ctx := context.Background()
-	prompt := fmt.Sprintf("%s\n%s", getPrompt(language, emoji), diff)
-
-	chatCompletion, err := client.Chat.Completions.New(ctx, openai.ChatCompletionNewParams{
-		Messages: []openai.ChatCompletionMessageParamUnion{
-			openai.UserMessage(prompt),
-		},
-		Model: openaiModel,
-	})
-	if err != nil {
-		return "", fmt.Errorf("generating commit message: %w", err)
-	}
-
-	if len(chatCompletion.Choices) > 0 {
-		return parseAndRenderCommit(strings.TrimSpace(chatCompletion.Choices[0].Message.Content), emoji)
-	}
-
-	return "", fmt.Errorf("no commit message generated by OpenAI")
-}
-
-func generateDoubaoCommitMessage(diff, apiKey, endpointID, language string, emoji bool) (string, error) {
-	// An Ark endpoint ID (ep-xxx) or model ID may be supplied; fall back to
-	// the default model when neither is configured.
-	if endpointID == "" {
-		endpointID = doubaoModel
-	}
-
-	client := arkruntime.NewClientWithApiKey(
-		apiKey,
-	)
-
-	ctx := context.Background()
-
-	prompt := fmt.Sprintf("%s\n%s", getPrompt(language, emoji), diff)
-
-	req := model.ChatCompletionRequest{
-		Model: endpointID,
-		Messages: []*model.ChatCompletionMessage{
-			{
-				Role: model.ChatMessageRoleSystem,
-				Content: &model.ChatCompletionMessageContent{
-					StringValue: volcengine.String("你是豆包，是由字节跳动开发的 AI 人工智能助手，你非常擅长生成 git commit message"),
-				},
-			},
-			{
-				Role: model.ChatMessageRoleUser,
-				Content: &model.ChatCompletionMessageContent{
-					StringValue: volcengine.String(prompt),
-				},
-			},
-		},
-	}
-
-	resp, err := client.CreateChatCompletion(ctx, req)
-	if err != nil {
-		return "", err
-	}
-	return parseAndRenderCommit(*resp.Choices[0].Message.Content.StringValue, emoji)
-}
-
-func generateDeepseekCommitMessage(diff, apiKey, language string, emoji bool) (string, error) {
-	client := &http.Client{}
-	ctx := context.Background()
-	prompt := fmt.Sprintf("%s\n%s", getPrompt(language, emoji), diff)
-
-	reqBody := map[string]any{
-		"model": deepseekModel,
-		"messages": []map[string]string{
-			{
-				"role":    "system",
-				"content": "You are Deepseek, an AI assistant specialized in generating git commit messages.",
-			},
-			{
-				"role":    "user",
-				"content": prompt,
-			},
-		},
-		"stream": false,
-	}
-
-	jsonBody, err := json.Marshal(reqBody)
-	if err != nil {
-		return "", fmt.Errorf("marshaling request body: %w", err)
-	}
-
-	req, err := http.NewRequestWithContext(ctx, "POST", "https://api.deepseek.com/chat/completions", bytes.NewBuffer(jsonBody))
-	if err != nil {
-		return "", fmt.Errorf("creating request: %w", err)
-	}
-
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+apiKey)
-
-	resp, err := client.Do(req)
-	if err != nil {
-		return "", fmt.Errorf("making request: %w", err)
-	}
-	defer resp.Body.Close()
-
-	var result map[string]any
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return "", fmt.Errorf("decoding response: %w", err)
-	}
-
-	if choices, ok := result["choices"].([]any); ok && len(choices) > 0 {
-		if choice, ok := choices[0].(map[string]any); ok {
-			if message, ok := choice["message"].(map[string]any); ok {
-				if content, ok := message["content"].(string); ok {
-					return parseAndRenderCommit(content, emoji)
-				}
-			}
-		}
-	}
-
-	return "", fmt.Errorf("invalid response format from Deepseek: %v", result)
-}
-
-func generateQwenCommitMessage(diff, apiKey, language string, emoji bool, timeout int) (string, error) {
-	apiKey = strings.TrimSpace(apiKey)
-	if apiKey == "" {
-		apiKey = os.Getenv("DASHSCOPE_API_KEY")
-	}
-
-	if apiKey == "" {
-		return "", fmt.Errorf("API key is empty: please provide an API key via configuration or DASHSCOPE_API_KEY environment variable")
-	}
-
-	client := openai.NewClient(
-		openaioption.WithAPIKey(apiKey),
-		openaioption.WithBaseURL("https://dashscope.aliyuncs.com/compatible-mode/v1/"),
-	)
-
-	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeout)*time.Second)
-	defer cancel()
-
-	prompt := fmt.Sprintf("%s\n%s", getPrompt(language, emoji), diff)
-
-	chatCompletion, err := client.Chat.Completions.New(ctx, openai.ChatCompletionNewParams{
-		Messages: []openai.ChatCompletionMessageParamUnion{
-			openai.UserMessage(prompt),
-		},
-		Model: qwenModel,
-	})
-	if err != nil {
-		return "", fmt.Errorf("generating commit message: %w", err)
-	}
-
-	if len(chatCompletion.Choices) > 0 {
-		return parseAndRenderCommit(strings.TrimSpace(chatCompletion.Choices[0].Message.Content), emoji)
-	}
-
-	return "", fmt.Errorf("no commit message generated by Qwen")
 }
 
 func generateOpenAICompatibleCommitMessage(diff, apiKey, model, baseURL, language string, emoji bool, timeout int) (string, error) {

@@ -63,7 +63,7 @@ formatters:
       sections:
         - standard
         - default
-        - prefix(github.com/zzxwill/aigit)
+        - prefix(github.com/YouCD/aigit)
 
     golines:
       max-len: 200
