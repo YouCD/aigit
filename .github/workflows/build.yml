@@ -109,5 +109,5 @@ jobs:
             artifacts/aigit_windows_amd64.exe
           draft: false
           body: ${{ steps.release_drafter.outputs.body }}
-          tag_name: ${{ steps.release_drafter.outputs.tag_name }}
-          name: ${{ steps.release_drafter.outputs.name }}
+          tag_name: ${{ github.ref_name }}
+          name: ${{ github.ref_name }}
